@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Pascal Triangle mod p</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    .controls {
+      margin-bottom: 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #f5f5f5;
+      padding: 8px 0;
+    }
+
+    label {
+      font-size: 18px;
+    }
+
+    input[type="number"] {
+      width: 90px;
+      font-size: 18px;
+      padding: 6px 8px;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 8px 12px;
+      cursor: pointer;
+      border: 1px solid #888;
+      border-radius: 6px;
+      background: white;
+      color: black;
+      touch-action: manipulation;
+    }
+
+    button.active {
+      background: #333;
+      color: white;
+    }
+
+    .canvas-wrap {
+      width: 100%;
+      overflow: auto;
+      background: white;
+      border: 1px solid #333;
+      line-height: 0;
+    }
+
+    canvas {
+      width: min(2000px, 100%);
+      height: auto;
+      background: white;
+      display: block;
+    }
+
+    @media print {
+      .controls {
+        display: none;
+      }
+
+      body {
+        padding: 0;
+        background: white;
+      }
+
+      .canvas-wrap {
+        border: none;
+        overflow: visible;
+        page-break-inside: avoid;
+      }
+
+      canvas {
+        width: 100vw;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label for="pInput">p = </label>
+    <input id="pInput" type="number" min="2" step="1" value="2" inputmode="numeric">
+    <button type="button" data-delta="-5">-5</button>
+    <button type="button" data-delta="-1">-1</button>
+    <button type="button" data-delta="1">+1</button>
+    <button type="button" data-delta="5">+5</button>
+    <button type="button" id="resetButton">初期化</button>
+    <button type="button" id="colorButton">色分け</button>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas" width="2000" height="2000"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const pInput = document.getElementById("pInput");
+    const resetButton = document.getElementById("resetButton");
+    const colorButton = document.getElementById("colorButton");
+
+    const W = 2000;
+    const H = 2000;
+    const CELL = 2;
+
+    // n段目のy座標は 1 + 2n, 高さ2なので、n = 0,...,999 を描ける。
+    const MAX_ROW = Math.floor((H - 1) / CELL);
+
+    let colorMode = false;
+
+    function normalizeP(value) {
+      const p = Math.floor(Number(value));
+      if (!Number.isFinite(p) || p < 2) return 2;
+      return p;
+    }
+
+    function updateColorButton() {
+      colorButton.classList.toggle("active", colorMode);
+      colorButton.textContent = colorMode ? "色分け中" : "色分け";
+    }
+
+    function setP(value) {
+      const p = normalizeP(value);
+      pInput.value = p;
+      draw(p);
+    }
+
+    function clearCanvas() {
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function colorForValue(value, p) {
+      // value = 0 は白。1以上は色相を分ける。
+      if (value === 0) return "white";
+
+      const hue = Math.round(360 * (value - 1) / Math.max(1, p - 1));
+      return `hsl(${hue}, 80%, 45%)`;
+    }
+
+    function draw(p) {
+      clearCanvas();
+
+      // row[k] = C(n,k) mod p
+      let row = [1 % p];
+
+      for (let n = 0; n < MAX_ROW; n++) {
+        const y = 1 + CELL * n;
+        const startX = 1000 - n;
+
+        for (let k = 0; k <= n; k++) {
+          const value = row[k];
+
+          if (value === 0) {
+            continue;
+          }
+
+          const x = startX + CELL * k;
+
+          if (colorMode) {
+            ctx.fillStyle = colorForValue(value, p);
+          } else {
+            ctx.fillStyle = "black";
+          }
+
+          ctx.fillRect(x, y, CELL, CELL);
+        }
+
+        // 次の段をmod pで作る
+        const next = new Array(n + 2);
+        next[0] = 1 % p;
+        next[n + 1] = 1 % p;
+
+        for (let k = 1; k <= n; k++) {
+          next[k] = (row[k - 1] + row[k]) % p;
+        }
+
+        row = next;
+      }
+    }
+
+    pInput.addEventListener("change", () => {
+      setP(pInput.value);
+    });
+
+    pInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        setP(pInput.value);
+        pInput.blur();
+      }
+    });
+
+    document.querySelectorAll("button[data-delta]").forEach(button => {
+      button.addEventListener("click", () => {
+        const delta = Number(button.dataset.delta);
+        const current = normalizeP(pInput.value);
+        setP(current + delta);
+      });
+    });
+
+    resetButton.addEventListener("click", () => {
+      colorMode = false;
+      updateColorButton();
+      setP(2);
+    });
+
+    colorButton.addEventListener("click", () => {
+      colorMode = !colorMode;
+      updateColorButton();
+      setP(pInput.value);
+    });
+
+    updateColorButton();
+    setP(2);
+  </script>
+</body>
+</html>
